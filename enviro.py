@@ -10,27 +10,35 @@ class WeatherServer:
     self.history_data = []
     self.last_history = time.time()
 
+  def origin_header(self):
+    if "Origin" in cherrypy.request.headers:
+      if cherrypy.request.headers["Origin"] in ("http://sternpi:8080", "http://battery.rebellionafloat.uk"):
+        cherrypy.response.headers["Access-Control-Allow-Origin"] = cherrypy.request.headers["Origin"]
+
   @cherrypy.expose
   @cherrypy.tools.json_out()
   def status(self):
-    cherrypy.response.headers["Access-Control-Allow-Origin"] = "http://sternpi:8080"
+    self.origin_header()
+    cherrypy.response.headers["Cache-Control"] = 'no-cache'
     return self.data
 
   def read_data(self):
     t = time.time()
-    self.data = {
-      'Time': int(t),
-      'PiTemp': round(weather.temperature(), 2),
-      'Temp': round((analog.read(0) - 0.5)*100.0, 2),
-      'Pres': round(weather.pressure() / 100.0, 2) }
-    if t > self.last_history + 29.0:
-      self.history_data.append(self.data)
-      self.last_history += 30.0
+    try:
+      self.data = {
+        'Time': int(t),
+        'Temp': round(weather.temperature(), 2) - 6,
+        'Pres': round(weather.pressure() / 100.0, 2) }
+      if t > self.last_history + 29.0:
+        self.history_data.append(self.data)
+        self.last_history += 30.0
+    except IOError:
+      pass
 
   @cherrypy.expose
   @cherrypy.tools.json_out()
   def history(self, readings="300", interval="1"):
-    cherrypy.response.headers["Access-Control-Allow-Origin"] = "http://sternpi:8080"
+    self.origin_header()
     readings, interval = int(readings), int(interval)
     start = -readings*interval
     if -start > len(self.history_data):
